@@ -148,20 +148,37 @@ The criterion is a **lexical filter**, not comprehension. It catches rules writt
 
 ---
 
-## Repository contents
+## Contents
 
 ```
-audit_context.py       the tool
+audit_context.py            the tool
 examples/
-  CLAUDE.before.md     a generic bloated context file
-  CLAUDE.after.md      the same file after extraction
-  docs/                the README files produced by the extraction
-ARTICLE-fr.md          the long-form French version of this text
+  CLAUDE.before.md          a generic bloated context file (7.2 KB, 14 imperative lines)
+  CLAUDE.after.md           the same file, correctly extracted
+  CLAUDE.after-broken.md    the same extraction, with one rule accidentally dropped
+  docs/                     the README files produced by the extraction
+ARTICLE-fr.md               the long-form French version of this text
 ```
+
+### Run the demo
+
+```bash
+python audit_context.py measure  examples/CLAUDE.before.md
+python audit_context.py baseline examples/CLAUDE.before.md -o /tmp/demo.json
+
+python audit_context.py check    examples/CLAUDE.after.md        /tmp/demo.json
+#   → 5 disappeared, all legitimate history. Read them, classify them, move on.
+
+python audit_context.py check    examples/CLAUDE.after-broken.md /tmp/demo.json
+#   → 6 disappeared. The extra one is the webhook signature rule.
+#     That is the failure this tool exists to catch.
+```
+
+The `-broken` file is what a normal, careful extraction looks like when one rule slips through. Nothing about it is obviously wrong on reading. That is the whole point.
 
 > **Note on `audit_context.py`.** The canonical copy lives in the authoring workspace at
 > `skills/context-diet/scripts/audit_context.py`. The copy here is a duplicate and will drift.
-> Re-synchronise it before any publication. This repository has been bitten by drifting
+> Re-synchronise it before any publication. That workspace has been bitten by drifting
 > duplicates before, so the risk is named here rather than hidden behind a sync script nobody runs.
 
 ## License

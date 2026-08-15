@@ -209,11 +209,22 @@ def cmd_check(args) -> int:
 
 
 def cmd_links(args) -> int:
-    """Un lien d'index mort rend un README inatteignable, donc la regle muette."""
+    """Un lien d'index mort rend un README inatteignable, donc la regle muette.
+
+    Les blocs de code delimites par ``` sont ignores : un fichier qui documente
+    la bonne et la mauvaise facon d'ecrire une ligne d'index contient des liens
+    d'illustration qui n'ont aucune raison de resoudre.
+    """
     text = read(args.file)
     root = os.path.dirname(os.path.abspath(args.file)) or "."
     dead = []
+    in_fence = False
     for i, raw in enumerate(text.split("\n"), 1):
+        if raw.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         for target in RX_LINK.findall(raw):
             t = target.split("#")[0].strip()
             if not t or "://" in t or t.startswith("mailto:"):
