@@ -18,15 +18,119 @@ J'en ai perdu quatre. Je les ai toutes récupérées, uniquement parce qu'un com
 
 ---
 
-## Pourquoi un fichier de contexte devient-il énorme ?
+## Comment arrive-t-on à un fichier de 200 Ko ?
 
-Par accumulation, jamais par décision.
+Par accumulation, jamais par décision. Et surtout, en ayant raison à chaque étape.
 
-Un fichier comme `CLAUDE.md`, `AGENTS.md` ou `.cursorrules` est chargé intégralement au début de chaque conversation. Il porte les règles de travail, les conventions, les pièges déjà rencontrés.
+Un fichier comme `CLAUDE.md`, `AGENTS.md` ou `.cursorrules` est chargé intégralement au début de chaque conversation. Il porte les règles de travail, les conventions, les pièges déjà rencontrés. Personne ne se réveille un matin en décidant de l'alourdir. Il grossit par six mécanismes, tous raisonnables pris un par un.
 
-Chaque incident de production ajoute une ligne. Chaque composant livré ajoute un paragraphe qui explique son histoire. Chaque décision technique ajoute un encadré qui justifie le choix. Tout cela est légitime au moment où on l'écrit.
+### 1. L'incident qui gonfle en trois temps
 
-Personne ne supprime jamais rien, parce que supprimer demande de juger ce qui compte encore, et que ce jugement est inconfortable. Au bout d'un an, mon fichier faisait 217 Ko. Il coûtait environ 60 000 tokens avant même que je pose ma première question.
+C'est le mécanisme principal, et le plus difficile à combattre parce que chaque ajout est justifié.
+
+Jour 1, vous venez de passer un après-midi sur un bug. Vous écrivez la règle.
+
+```markdown
+Ne jamais lire `request.POST` avant d'avoir vérifié la signature du webhook.
+```
+
+Une ligne. Parfait.
+
+Deux semaines plus tard, un collègue demande pourquoi. Vous ajoutez l'explication, parce que répondre une fois dans le fichier vaut mieux que répondre trois fois sur la messagerie.
+
+Trois mois plus tard, quelqu'un propose un refactor qui casserait exactement ça. Vous ajoutez les pistes déjà écartées, pour que la discussion ne recommence pas.
+
+```markdown
+### Vérification de signature des webhooks
+
+Ne jamais lire `request.POST` avant d'avoir vérifié la signature.
+
+Le framework consomme le flux brut au premier accès au corps parsé, donc la
+signature ne correspond plus. On a mis un après-midi à le trouver, parce que
+l'erreur remontait comme un rejet côté fournisseur et pas comme un problème
+d'ordre d'appel.
+
+On a envisagé de rebufferiser la requête dans un middleware global. Rejeté,
+parce que ça alourdissait toutes les requêtes du site pour un seul endpoint.
+On a aussi regardé le décorateur fourni par le SDK, qui fait exactement ça
+mais suppose que l'endpoint est le seul consommateur du corps.
+```
+
+Une ligne devenue quatorze. Aucune des treize ajoutées n'est fautive. La personne qui les a écrites avait raison à chaque fois.
+
+Sauf que **la règle, elle, tient toujours en une ligne.** Les treize autres sont de la mémoire d'équipe, et la mémoire d'équipe n'a pas besoin d'être rechargée à chaque conversation.
+
+### 2. Le catalogue qui suit la croissance du projet
+
+Au début vous avez trois composants. Vous les décrivez en quatre lignes chacun, ce qui fait douze lignes. Personne ne verra jamais un problème là-dedans.
+
+Dix-huit mois plus tard vous en avez vingt-deux. Le même format donnerait quatre-vingt-huit lignes, sauf que personne n'est resté à quatre lignes. Ceux qui ont eu une histoire mouvementée en ont quinze.
+
+Voilà le vrai discriminant, et il est simple à retenir. **Un catalogue grossit avec le projet. Un ensemble de règles, non.** Le nombre de choses que vous possédez augmente sans limite. Le nombre de réflexes à avoir avant d'agir reste à peu près stable.
+
+Si une section grossit parce que le projet grossit, elle n'a rien à faire dans un fichier chargé en permanence.
+
+### 3. Le journal collé en tête
+
+Il commence par une date. Puis une phrase, pour dire ce qui a changé. Puis une deuxième, parce que la première était trop vague.
+
+On voit régulièrement, dans des fichiers de contexte, un « Last updated » devenu **une seule ligne de plusieurs milliers de caractères**, où deux ans d'historique ont été concaténés entre parenthèses. Personne ne l'a décidé. Chacun a simplement ajouté sa parenthèse à la suite.
+
+Ce contenu a une vraie valeur. Il n'en a aucune au démarrage de chaque conversation.
+
+### 4. La documentation défensive
+
+On écrit pour un lecteur imaginaire qui ne sait rien. Alors on explique ce qu'est une migration, à quoi sert une file de tâches, pourquoi on met les secrets dans une variable d'environnement.
+
+Le lecteur réel est un modèle qui connaît déjà le framework mieux que vous ne le documenterez jamais. Ce qu'il ignore, c'est ce qui est **spécifique à votre projet**. Tout le reste occupe de la place sans rien apporter.
+
+Test rapide sur un paragraphe : s'il serait vrai à l'identique sur n'importe quel autre projet du même stack, il est de trop.
+
+### 5. La duplication qu'on ne voit pas
+
+Passé une certaine taille, plus personne ne sait ce que le fichier contient déjà. Alors on rajoute la règle une deuxième fois, dans une autre section, avec une autre formulation.
+
+Ce n'est pas de la négligence, c'est mécanique. Au-delà de quelques centaines de lignes, relire avant d'écrire coûte plus cher que réécrire.
+
+### 6. Le collage de sortie brute
+
+Un extrait de terminal, un fichier de configuration complet, une trace d'erreur de quarante lignes. C'est très rapide à coller et très lourd à porter. Le rapport entre le poids et l'information utile est catastrophique.
+
+### L'arithmétique, sans rien exagérer
+
+Prenez un projet actif, deux incidents documentés par semaine, dix à quinze lignes chacun une fois qu'ils ont gonflé selon le mécanisme numéro 1.
+
+Sur dix-huit mois, ça fait environ cent cinquante incidents et **entre 1 500 et 2 000 lignes**. Ajoutez un catalogue qui suit la croissance, un journal en tête, et la documentation défensive des débuts.
+
+Vous obtenez un fichier de plusieurs centaines de kilo-octets sans qu'aucune décision individuelle n'ait été mauvaise. C'est exactement pour ça que le problème passe inaperçu : il n'y a personne à blâmer et aucun moment où ça a dérapé.
+
+### Comment savoir où ça se cache chez vous
+
+Ne jugez pas au poids seul. Une grosse section peut être parfaitement légitime.
+
+Le signal utile est le rapport entre le poids d'une section et le nombre de règles qu'elle contient. C'est ce que la commande `measure` affiche en dernière colonne.
+
+```
+                                        poids  règles    o/règle
+Composants                            80.8 Ko      63       1313
+Skills                                39.9 Ko      18       2268
+Journal des versions                  10.4 Ko       2       5320  <-- du récit
+```
+
+Une section à quelques centaines d'octets par règle est dense, elle se défend. Une section à plusieurs milliers est une histoire avec une règle dedans, et c'est elle qu'il faut sortir en premier.
+
+Le même fichier après extraction, sur les mêmes sections :
+
+| Section | Avant | Après | Densité |
+|---|---|---|---|
+| Composants | 1 313 o/règle | 612 | 2,1 fois plus dense |
+| Skills | 2 268 o/règle | 461 | 4,9 fois plus dense |
+| Serveurs MCP | 1 510 o/règle | 483 | 3,1 fois plus dense |
+| Journal | 5 320 o/règle | 878 | 6,1 fois plus dense |
+
+Le fichier n'a pas seulement maigri. Chaque kilo-octet restant porte trois à cinq fois plus de règles qu'avant.
+
+Une remarque honnête pour finir sur ce point. L'outil signale toujours une section à 4 543 octets par règle dans mon propre fichier, et je l'ai laissée. C'est l'arborescence du dépôt, qui sert à naviguer et pas à décider. Le ratio est un indicateur, pas un juge.
 
 ## Quel est le mode de panne exact ?
 
@@ -202,6 +306,12 @@ Seulement si la ligne d'index laissée dans le fichier principal annonce le suje
 
 **Quelle taille viser pour un fichier de contexte ?**
 Il n'existe pas de seuil universel, mais toute section dépassant 20 Ko contient presque toujours du catalogue déplaçable vers un README.
+
+**Pourquoi un CLAUDE.md grossit-il sans que personne ne le décide ?**
+Parce que chaque ajout est justifié isolément : un incident documenté prend dix à quinze lignes, et deux par semaine suffisent à produire deux mille lignes en dix-huit mois.
+
+**Comment repérer les sections à extraire en premier ?**
+Divisez le poids de chaque section par le nombre de règles qu'elle contient : au-delà de quelques milliers d'octets par règle, c'est du récit avec une règle dedans.
 
 **Que garde-t-on obligatoirement dans le fichier principal ?**
 Les règles d'orchestration, les arbitrages en cas de conflit, les contraintes techniques dures, les valeurs par défaut et les réflexes de sécurité.

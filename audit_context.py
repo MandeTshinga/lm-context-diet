@@ -122,13 +122,18 @@ def imperatives(text: str) -> dict:
 
 
 def sections(text: str) -> list:
-    """[(titre, octets)] par section de niveau ##, dans l'ordre du fichier."""
+    """[(titre, octets, nb_imperatifs)] par section ##, dans l'ordre du fichier.
+
+    Le rapport octets / imperatif est le vrai signal : une section dense en
+    regles se defend, une section lourde qui n'en porte aucune est du recit.
+    """
     lines = text.split("\n")
     idx = [i for i, l in enumerate(lines) if l.startswith("## ")]
     out = []
     for k, i in enumerate(idx):
         end = idx[k + 1] if k + 1 < len(idx) else len(lines)
-        out.append((lines[i][3:].strip(), len("\n".join(lines[i:end]))))
+        chunk = "\n".join(lines[i:end])
+        out.append((lines[i][3:].strip(), len(chunk), len(imperatives(chunk))))
     return out
 
 
@@ -151,11 +156,25 @@ def cmd_measure(args) -> int:
 
     secs = sections(text)
     if secs:
-        print("\n  Sections (## ), de la plus lourde a la plus legere :")
-        for title, n in sorted(secs, key=lambda s: -s[1]):
-            pct = 100.0 * n / size if size else 0
-            bar = "#" * max(1, int(pct / 2))
-            print("    %-44s %7.1f Ko  %5.1f%%  %s" % (title[:44], n / 1024.0, pct, bar))
+        print("\n  Sections, de la plus lourde a la plus legere.")
+        print("  La derniere colonne est le signal : octets par ligne imperative.")
+        print("  %-38s %8s %7s %10s" % ("", "poids", "regles", "o/regle"))
+        worst = []
+        for title, n, imp in sorted(secs, key=lambda s: -s[1]):
+            ratio = (n / imp) if imp else None
+            flag = ""
+            if ratio is None and n > 4096:
+                flag = "  <-- aucune regle"
+                worst.append(title)
+            elif ratio is not None and ratio > 3000:
+                flag = "  <-- du recit"
+                worst.append(title)
+            print("  %-38s %6.1f Ko %7s %10s%s" % (
+                title[:38], n / 1024.0, imp,
+                ("%d" % ratio) if ratio else "-", flag))
+        if worst:
+            print("\n  A sortir en priorite : " + ", ".join(worst[:4]))
+            print("  Une section lourde sans regle est de l'historique ou du catalogue.")
     return 0
 
 

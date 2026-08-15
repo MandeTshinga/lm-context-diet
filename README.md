@@ -50,12 +50,38 @@ python audit_context.py links    CLAUDE.md
 
 | Command | What it does |
 |---|---|
-| `measure` | Bytes, lines, estimated tokens, and the weight of every `##` section |
+| `measure` | Bytes, lines, estimated tokens, and every `##` section's weight **per rule it carries** |
 | `baseline` | Records the fingerprint of every imperative line |
 | `check` | Recounts and **names** the fingerprints that disappeared. Exits 1 on loss |
 | `links` | Flags relative markdown links that no longer resolve |
 
 `check` exiting non-zero is what makes it a test rather than a report.
+
+### Don't sort by weight. Sort by bytes per rule.
+
+A big section can be perfectly legitimate. The signal is the last column of `measure`:
+
+```
+                                        poids  règles    o/règle
+Composants                            80.8 Ko      63       1313
+Skills                                39.9 Ko      18       2268
+Version journal                       10.4 Ko       2       5320  <-- du récit
+```
+
+A few hundred bytes per rule means the section is dense and earns its place. Several thousand means it is a story with a rule buried in it, and that is what to extract first. The script flags anything above 3,000 bytes per rule, and any section over 4 KB carrying none at all.
+
+After extraction, the same sections read very differently:
+
+| Section | Before | After | |
+|---|---|---|---|
+| Components | 1,313 B/rule | 612 | 2.1× denser |
+| Skills | 2,268 B/rule | 461 | 4.9× denser |
+| MCP servers | 1,510 B/rule | 483 | 3.1× denser |
+| Version journal | 5,320 B/rule | 878 | 6.1× denser |
+
+The file did not merely shrink. Every remaining kilobyte carries three to five times more rules than before.
+
+Treat the ratio as an indicator, not a verdict. A navigational section such as a directory tree will always score badly and may legitimately stay.
 
 ## ⚠️ Granularity is the whole game
 
