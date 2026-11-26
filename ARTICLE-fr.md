@@ -108,13 +108,13 @@ Vous obtenez un fichier de plusieurs centaines de kilo-octets sans qu'aucune dé
 
 Ne jugez pas au poids seul. Une grosse section peut être parfaitement légitime.
 
-Le signal utile est le rapport entre le poids d'une section et le nombre de règles qu'elle contient. C'est ce que la commande `measure` affiche en dernière colonne.
+Le signal utile est le rapport entre le poids d'une section et le nombre de règles qu'elle contient. C'est ce que la commande `measure` affiche en dernière colonne (l'outil s'affiche en anglais : `size` = poids, `rules` = règles, `B/rule` = octets par règle).
 
 ```
-                                        poids  règles    o/règle
-Composants                            80.8 Ko      63       1313
-Skills                                39.9 Ko      18       2268
-Journal des versions                  10.4 Ko       2       5320  <-- du récit
+                                           size   rules     B/rule
+Composants                               80.8 KB      63       1313
+Skills                                   39.9 KB      18       2268
+Journal des versions                     10.4 KB       2       5320  <-- a story
 ```
 
 Une section à quelques centaines d'octets par règle est dense, elle se défend. Une section à plusieurs milliers est une histoire avec une règle dedans, et c'est elle qu'il faut sortir en premier.
@@ -169,7 +169,7 @@ Cinq étapes, dont une qui se répète.
 **1. Mesurer.** Poids, lignes, tokens estimés, et surtout le poids de chaque section prise séparément. On attaque par la plus lourde.
 
 ```bash
-python audit_context.py measure CLAUDE.md
+python lm-context-diet.py measure CLAUDE.md
 ```
 
 **2. Poser une baseline.** Le script enregistre l'empreinte de chaque ligne impérative dans un fichier JSON.

@@ -1,12 +1,17 @@
-# Context Diet
+# lm-context-diet
 
 **Shrink a bloated `CLAUDE.md` without silently losing behavioural rules.**
+
+*[Version française plus bas](#version-française). Full article: [English](https://www.langagemachine.be/decryptage/en/silent-loss-trimming-claude-md-without-losing-rules) · [français](https://www.langagemachine.be/decryptage/perte-silencieuse-degraisser-claude-md-sans-perdre-de-regles).*
 
 I cut my working repository's `CLAUDE.md` from 222,864 bytes to 52,392 bytes, a **76.5 % reduction**, worth roughly **46,000 tokens per conversation**.
 
 Four rules disappeared in the process. Nothing broke. No error fired. I only recovered them because a counter was running at every step.
 
-That counter is what this repository is about.
+That counter is what this repository is about. It comes in two forms:
+
+- **`lm-context-diet.py`**, a single Python file with no dependency (Python 3.8+);
+- **a Claude Code skill**, in [`skill/lm-context-diet/`](skill/lm-context-diet/SKILL.md), that walks the model through the whole procedure.
 
 ---
 
@@ -41,11 +46,11 @@ Only the first sixty alphanumeric characters survive. Punctuation, case and acce
 ## Usage
 
 ```bash
-python audit_context.py measure  CLAUDE.md
-python audit_context.py baseline CLAUDE.md -o .ctx-baseline.json
+python lm-context-diet.py measure  CLAUDE.md
+python lm-context-diet.py baseline CLAUDE.md -o .ctx-baseline.json
 #   ... move ONE section into a README ...
-python audit_context.py check    CLAUDE.md .ctx-baseline.json
-python audit_context.py links    CLAUDE.md
+python lm-context-diet.py check    CLAUDE.md .ctx-baseline.json
+python lm-context-diet.py links    CLAUDE.md
 ```
 
 | Command | What it does |
@@ -57,15 +62,19 @@ python audit_context.py links    CLAUDE.md
 
 `check` exiting non-zero is what makes it a test rather than a report.
 
+### Use it as a Claude Code skill
+
+Copy the `skill/lm-context-diet/` folder into `~/.claude/skills/` (all projects) or `.claude/skills/` (one project), and put `lm-context-diet.py` where the skill can run it. Then ask Claude Code to "slim my CLAUDE.md" or type `/lm-context-diet`. The skill applies the procedure below, one section at a time, and runs the check after each extraction.
+
 ### Don't sort by weight. Sort by bytes per rule.
 
 A big section can be perfectly legitimate. The signal is the last column of `measure`:
 
 ```
-                                        poids  règles    o/règle
-Composants                            80.8 Ko      63       1313
-Skills                                39.9 Ko      18       2268
-Version journal                       10.4 Ko       2       5320  <-- du récit
+                                           size   rules     B/rule
+Components                               80.8 KB      63       1313
+Skills                                   39.9 KB      18       2268
+Version journal                          10.4 KB       2       5320  <-- a story
 ```
 
 A few hundred bytes per rule means the section is dense and earns its place. Several thousand means it is a story with a rule buried in it, and that is what to extract first. The script flags anything above 3,000 bytes per rule, and any section over 4 KB carrying none at all.
@@ -177,7 +186,8 @@ The criterion is a **lexical filter**, not comprehension. It catches rules writt
 ## Contents
 
 ```
-audit_context.py            the tool
+lm-context-diet.py          the tool
+skill/lm-context-diet/      the Claude Code skill (SKILL.md)
 examples/
   CLAUDE.before.md          a generic bloated context file (7.2 KB, 14 imperative lines)
   CLAUDE.after.md           the same file, correctly extracted
@@ -189,23 +199,54 @@ ARTICLE-fr.md               the long-form French version of this text
 ### Run the demo
 
 ```bash
-python audit_context.py measure  examples/CLAUDE.before.md
-python audit_context.py baseline examples/CLAUDE.before.md -o /tmp/demo.json
+python lm-context-diet.py measure  examples/CLAUDE.before.md
+python lm-context-diet.py baseline examples/CLAUDE.before.md -o demo.json
 
-python audit_context.py check    examples/CLAUDE.after.md        /tmp/demo.json
-#   → 5 disappeared, all legitimate history. Read them, classify them, move on.
+python lm-context-diet.py check    examples/CLAUDE.after.md        demo.json
+#   → before 14 -> after 13, disappeared 5: all legitimate history.
+#     Read them, classify them, move on.
 
-python audit_context.py check    examples/CLAUDE.after-broken.md /tmp/demo.json
-#   → 6 disappeared. The extra one is the webhook signature rule.
+python lm-context-diet.py check    examples/CLAUDE.after-broken.md demo.json
+#   → before 14 -> after 12, disappeared 6, exit code 1.
+#     The extra one is the webhook signature rule.
 #     That is the failure this tool exists to catch.
 ```
 
 The `-broken` file is what a normal, careful extraction looks like when one rule slips through. Nothing about it is obviously wrong on reading. That is the whole point.
 
-> **Note on `audit_context.py`.** The canonical copy lives in the authoring workspace at
-> `skills/context-diet/scripts/audit_context.py`. The copy here is a duplicate and will drift.
-> Re-synchronise it before any publication. That workspace has been bitten by drifting
-> duplicates before, so the risk is named here rather than hidden behind a sync script nobody runs.
+---
+
+## Version française
+
+**Dégraisser un `CLAUDE.md` trop lourd sans perdre de règle en silence.**
+
+J'ai réduit le `CLAUDE.md` de mon dépôt de travail de 222 864 à 52 392 octets, soit **76,5 % de moins** et environ **46 000 tokens économisés à chaque conversation**. Quatre règles ont disparu en route, sans la moindre erreur. Je ne les ai récupérées que parce qu'un compteur tournait à chaque étape. Ce dépôt contient ce compteur, sous deux formes : le script `lm-context-diet.py` (un seul fichier Python, sans dépendance) et un skill Claude Code dans [`skill/lm-context-diet/`](skill/lm-context-diet/SKILL.md).
+
+L'outil et sa documentation sont en anglais. L'article complet en français : [La perte silencieuse : dégraisser un CLAUDE.md sans perdre de règles](https://www.langagemachine.be/decryptage/perte-silencieuse-degraisser-claude-md-sans-perdre-de-regles) (également dans [`ARTICLE-fr.md`](ARTICLE-fr.md)).
+
+### Le principe en cinq points
+
+1. **Une ligne reste dans le fichier de contexte si elle porte un impératif** (`toujours`, `jamais`, `obligatoire`, `doit`, `ne pas`, et leurs équivalents anglais). Sinon, elle part vers un README. Le critère n'est pas parfait : il est **comptable**, et c'est ce qui compte.
+2. **On compte avant, on recompte après.** `baseline` enregistre l'empreinte de chaque ligne impérative ; `check` liste nommément celles qui ont disparu et sort en code 1.
+3. **Une section à la fois, jamais un lot.** Une section rend 3 lignes à relire ; tout le dégraissage d'un coup en rend 120, où la vraie règle perdue est noyée.
+4. **On déplace la phrase de règle telle quelle**, sans la reformuler dans la même passe, sinon le contrôle ne peut plus rien prouver.
+5. **Un README n'est atteint que si la ligne d'index annonce de quoi parle la règle.** « Voir MCP/README.md » ne sera jamais ouvert au bon moment ; « Ordre d'appel obligatoire, règle de publication : MCP/README.md » le sera.
+
+### Utilisation
+
+```bash
+python lm-context-diet.py measure  CLAUDE.md
+python lm-context-diet.py baseline CLAUDE.md -o .ctx-baseline.json
+#   ... déplacer UNE section vers un README ...
+python lm-context-diet.py check    CLAUDE.md .ctx-baseline.json
+python lm-context-diet.py links    CLAUDE.md
+```
+
+Dans la sortie de `measure`, la dernière colonne (`B/rule`, octets par règle) est le signal : quelques centaines, la section est dense et se défend ; plusieurs milliers, c'est une histoire avec une règle dedans, à sortir en premier.
+
+Pour le skill : copier le dossier `skill/lm-context-diet/` dans `~/.claude/skills/` (tous les projets) ou `.claude/skills/` (un projet), puis demander à Claude Code de « dégraisser mon CLAUDE.md » ou taper `/lm-context-diet`.
+
+La démo des exemples (`examples/`) montre en une commande le contrôle attraper une règle perdue : voir « Run the demo » plus haut.
 
 ## License
 

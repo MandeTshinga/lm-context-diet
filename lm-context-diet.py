@@ -1,30 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""audit_context.py — garde-fou pour degraisser un fichier de contexte
-(CLAUDE.md, AGENTS.md, .cursorrules...) sans perdre de regle de comportement.
+"""lm-context-diet.py: a safety net for slimming a context file
+(CLAUDE.md, AGENTS.md, .cursorrules...) without losing behavioural rules.
 
-Le probleme qu'il resout : deplacer du contenu d'un fichier de contexte vers
-des README ne casse rien quand ca se passe mal. Une regle disparue ne produit
-aucune erreur, elle cesse simplement de s'appliquer. On ne s'en apercoit que
-le jour ou le modele fait le mauvais choix.
+The problem it solves: moving content out of a context file into README
+files breaks nothing when it goes wrong. A rule that disappears raises no
+error, it simply stops applying. You only notice the day the model makes
+the wrong call.
 
-La parade : compter les lignes portant un imperatif de comportement AVANT
-chaque extraction, recompter APRES, et lister nommement ce qui a disparu.
+The fix: count the lines that carry a behavioural imperative BEFORE each
+extraction, count again AFTER, and name every line that disappeared.
 
-    python audit_context.py measure  CLAUDE.md
-    python audit_context.py baseline CLAUDE.md -o .ctx-baseline.json
-    #   ... extraire UNE section vers un README ...
-    python audit_context.py check    CLAUDE.md .ctx-baseline.json
-    python audit_context.py links    CLAUDE.md
+    python lm-context-diet.py measure  CLAUDE.md
+    python lm-context-diet.py baseline CLAUDE.md -o .ctx-baseline.json
+    #   ... move ONE section into a README ...
+    python lm-context-diet.py check    CLAUDE.md .ctx-baseline.json
+    python lm-context-diet.py links    CLAUDE.md
 
-`check` sort en code retour 1 si une empreinte a disparu. C'est ce qui en
-fait un test et non un rapport.
+`check` exits with code 1 when a fingerprint has disappeared. That is what
+makes it a test rather than a report.
 
-IMPORTANT : mesurer apres CHAQUE extraction, jamais une seule fois a la fin.
-Sur le cas reel qui a produit cet outil, la comparaison globale entre l'etat
-initial et l'etat final rendait 111 lignes disparues a examiner, dont la
-quasi-totalite etaient des deplacements legitimes. Mesuree section par
-section, la meme detection rendait 3 lignes, et les 3 se relisaient a la main.
+IMPORTANT: measure after EVERY extraction, never once at the end. On the
+real case that produced this tool, comparing the initial and final states
+in one go returned 111 disappeared lines to review, almost all of them
+legitimate moves. Measured section by section, the same detection returned
+3 lines, and all 3 could be reread by hand.
+
+Part of the Langagemachine tools (LM). MIT licence.
 """
 from __future__ import annotations
 
@@ -36,8 +38,9 @@ import re
 import sys
 
 # --------------------------------------------------------------------------
-# Sortie console : Windows ouvre stdout en cp1252 et leve UnicodeEncodeError
-# sur le moindre accent. On force UTF-8 avant toute impression.
+# Console output: Windows opens stdout in cp1252 and raises
+# UnicodeEncodeError on the first accented character. Force UTF-8 before
+# printing anything.
 # --------------------------------------------------------------------------
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -45,14 +48,14 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 # --------------------------------------------------------------------------
-# Marqueurs d'imperatif de comportement, FR + EN.
+# Behavioural imperative markers, English + French.
 #
-# Le critere n'a pas besoin d'etre parfait, il a besoin d'etre COMPTABLE.
-# Un faux positif coute une ligne relue. Un faux negatif coute une regle.
-# En cas de doute, elargir la liste plutot que la restreindre.
+# The criterion does not need to be perfect, it needs to be COUNTABLE.
+# A false positive costs one reread line. A false negative costs a rule.
+# When in doubt, widen the list rather than narrow it.
 # --------------------------------------------------------------------------
 MARKERS = [
-    # --- francais ---
+    # --- French ---
     r"\bobligatoire",
     r"\btoujours\b",
     r"\bjamais\b",
@@ -69,7 +72,7 @@ MARKERS = [
     r"\bR[ée]flexe\b",
     r"\bPi[èe]ge\b",
     r"\bprime\b",
-    # --- anglais ---
+    # --- English ---
     r"\bmandatory\b",
     r"\bnever\b",
     r"\balways\b",
@@ -83,11 +86,11 @@ MARKERS = [
 ]
 RX = re.compile("|".join(MARKERS), re.I)
 
-# Un lien markdown relatif : [texte](chemin) sans schema http(s):// ni ancre seule.
+# A relative markdown link: [text](path) without an http(s):// scheme.
 RX_LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
-# Estimation grossiere, calibree sur du markdown francais accentue.
-# A retenir comme un ordre de grandeur, jamais comme une mesure.
+# Rough estimate, calibrated on accented French markdown.
+# Read it as an order of magnitude, never as a measurement.
 BYTES_PER_TOKEN = 3.7
 
 
@@ -96,18 +99,18 @@ def read(path: str) -> str:
 
 
 def fingerprint(line: str) -> str:
-    """Empreinte stable d'une ligne : 60 premiers caracteres alphanumeriques.
+    """Stable fingerprint of a line: its first 60 alphanumeric characters.
 
-    Insensible a la ponctuation, a la casse et aux accents. Une ligne
-    reformulee superficiellement (gras deplace, virgule ajoutee) reste
-    reconnue. Une ligne supprimee ressort. C'est exactement le compromis
-    voulu : on cherche les disparitions, pas les retouches.
+    Ignores punctuation, case and accents. A line that was only lightly
+    edited (bold moved, comma added) is still recognised. A deleted line
+    stands out. That is exactly the trade we want: we are hunting for
+    disappearances, not for edits.
     """
     return re.sub(r"[^a-z0-9]", "", line.lower())[:60]
 
 
 def imperatives(text: str) -> dict:
-    """{empreinte: (numero de ligne, texte)} pour chaque ligne imperative."""
+    """{fingerprint: (line number, text)} for every imperative line."""
     out = {}
     for i, raw in enumerate(text.split("\n"), 1):
         s = raw.strip()
@@ -116,16 +119,16 @@ def imperatives(text: str) -> dict:
         if not RX.search(s):
             continue
         fp = fingerprint(s)
-        if len(fp) > 20:  # sous ce seuil l'empreinte n'est plus discriminante
+        if len(fp) > 20:  # below this length a fingerprint stops discriminating
             out[fp] = (i, s)
     return out
 
 
 def sections(text: str) -> list:
-    """[(titre, octets, nb_imperatifs)] par section ##, dans l'ordre du fichier.
+    """[(title, bytes, imperative count)] per ## section, in file order.
 
-    Le rapport octets / imperatif est le vrai signal : une section dense en
-    regles se defend, une section lourde qui n'en porte aucune est du recit.
+    Bytes per imperative is the real signal: a section dense in rules
+    earns its place, a heavy section that carries none is a story.
     """
     lines = text.split("\n")
     idx = [i for i, l in enumerate(lines) if l.startswith("## ")]
@@ -137,8 +140,12 @@ def sections(text: str) -> list:
     return out
 
 
+def thousands(n: int) -> str:
+    return format(n, ",d")
+
+
 # --------------------------------------------------------------------------
-# Sous-commandes
+# Subcommands
 # --------------------------------------------------------------------------
 def cmd_measure(args) -> int:
     text = read(args.file)
@@ -147,34 +154,32 @@ def cmd_measure(args) -> int:
     imps = imperatives(text)
 
     print("%s" % args.file)
-    print("  %-22s %s octets" % ("poids", format(size, ",d").replace(",", " ")))
-    print("  %-22s %d" % ("lignes", nlines))
-    print("  %-22s ~%s (estimation)" % (
-        "tokens",
-        format(int(size / BYTES_PER_TOKEN), ",d").replace(",", " ")))
-    print("  %-22s %d" % ("lignes imperatives", len(imps)))
+    print("  %-22s %s bytes" % ("size", thousands(size)))
+    print("  %-22s %d" % ("lines", nlines))
+    print("  %-22s ~%s (estimate)" % ("tokens", thousands(int(size / BYTES_PER_TOKEN))))
+    print("  %-22s %d" % ("imperative lines", len(imps)))
 
     secs = sections(text)
     if secs:
-        print("\n  Sections, de la plus lourde a la plus legere.")
-        print("  La derniere colonne est le signal : octets par ligne imperative.")
-        print("  %-38s %8s %7s %10s" % ("", "poids", "regles", "o/regle"))
+        print("\n  Sections, heaviest first.")
+        print("  The last column is the signal: bytes per imperative line.")
+        print("  %-38s %8s %7s %10s" % ("", "size", "rules", "B/rule"))
         worst = []
         for title, n, imp in sorted(secs, key=lambda s: -s[1]):
             ratio = (n / imp) if imp else None
             flag = ""
             if ratio is None and n > 4096:
-                flag = "  <-- aucune regle"
+                flag = "  <-- no rule"
                 worst.append(title)
             elif ratio is not None and ratio > 3000:
-                flag = "  <-- du recit"
+                flag = "  <-- a story"
                 worst.append(title)
-            print("  %-38s %6.1f Ko %7s %10s%s" % (
+            print("  %-38s %6.1f KB %7s %10s%s" % (
                 title[:38], n / 1024.0, imp,
                 ("%d" % ratio) if ratio else "-", flag))
         if worst:
-            print("\n  A sortir en priorite : " + ", ".join(worst[:4]))
-            print("  Une section lourde sans regle est de l'historique ou du catalogue.")
+            print("\n  Extract first: " + ", ".join(worst[:4]))
+            print("  A heavy section with no rule is history or a catalogue.")
     return 0
 
 
@@ -187,8 +192,8 @@ def cmd_baseline(args) -> int:
     }
     io.open(args.out, "w", encoding="utf-8").write(
         json.dumps(payload, ensure_ascii=False, indent=1))
-    print("baseline : %d lignes imperatives -> %s" % (len(imps), args.out))
-    print("Extrayez UNE section, puis relancez `check`.")
+    print("baseline: %d imperative lines -> %s" % (len(imps), args.out))
+    print("Move ONE section, then run `check`.")
     return 0
 
 
@@ -200,39 +205,39 @@ def cmd_check(args) -> int:
     lost = [fp for fp in before if fp not in after]
     gained = [fp for fp in after if fp not in before]
 
-    print("avant %d  ->  apres %d" % (len(before), len(after)))
-    print("disparues %d  |  nouvelles ou reformulees %d" % (len(lost), len(gained)))
+    print("before %d  ->  after %d" % (len(before), len(after)))
+    print("disappeared %d  |  new or reworded %d" % (len(lost), len(gained)))
 
     if len(lost) > 12:
         print()
-        print("!! %d disparitions : trop pour etre relues une par une." % len(lost))
-        print("   Ce n'est pas un resultat exploitable. Reposez une baseline")
-        print("   et extrayez UNE SEULE section avant de recontroler.")
+        print("!! %d disappearances: too many to review one by one." % len(lost))
+        print("   This is not a usable result. Take a new baseline")
+        print("   and move ONE SINGLE section before checking again.")
 
     if lost:
-        print("\n--- disparues, a arbitrer une par une ---")
+        print("\n--- disappeared, decide on each one ---")
         for fp in lost:
             print("  %s" % before[fp][:150])
-        print("\nPour chacune : soit c'est de l'historique parti legitimement")
-        print("vers un README, soit c'est une regle a restaurer dans le fichier.")
+        print("\nFor each: either it is history that legitimately moved")
+        print("to a README, or it is a rule to restore in the file.")
 
     if gained and args.verbose:
-        print("\n--- nouvelles ou reformulees ---")
+        print("\n--- new or reworded ---")
         for fp in gained:
             print("  %s" % after[fp][1][:150])
 
     if not lost:
-        print("\nOK : aucune ligne imperative perdue.")
+        print("\nOK: no imperative line lost.")
         return 0
     return 1
 
 
 def cmd_links(args) -> int:
-    """Un lien d'index mort rend un README inatteignable, donc la regle muette.
+    """A dead index link makes a README unreachable, so the rule goes silent.
 
-    Les blocs de code delimites par ``` sont ignores : un fichier qui documente
-    la bonne et la mauvaise facon d'ecrire une ligne d'index contient des liens
-    d'illustration qui n'ont aucune raison de resoudre.
+    Fenced code blocks (```) are skipped: a file that documents the right
+    and the wrong way to write an index line contains illustrative links
+    that have no reason to resolve.
     """
     text = read(args.file)
     root = os.path.dirname(os.path.abspath(args.file)) or "."
@@ -252,9 +257,9 @@ def cmd_links(args) -> int:
                 dead.append((i, t))
 
     if not dead:
-        print("OK : aucun lien relatif mort.")
+        print("OK: no dead relative link.")
         return 0
-    print("%d lien(s) mort(s) :" % len(dead))
+    print("%d dead link(s):" % len(dead))
     for i, t in dead:
         print("  L%-5d %s" % (i, t))
     return 1
@@ -262,25 +267,26 @@ def cmd_links(args) -> int:
 
 def main() -> int:
     p = argparse.ArgumentParser(
-        description="Degraisser un fichier de contexte sans perdre de regle.")
+        prog="lm-context-diet",
+        description="Slim a context file without losing a rule.")
     sub = p.add_subparsers(dest="cmd")
 
-    m = sub.add_parser("measure", help="poids, lignes, tokens, poids par section")
+    m = sub.add_parser("measure", help="size, lines, tokens, weight per section")
     m.add_argument("file")
     m.set_defaults(func=cmd_measure)
 
-    b = sub.add_parser("baseline", help="enregistrer les lignes imperatives")
+    b = sub.add_parser("baseline", help="record the imperative lines")
     b.add_argument("file")
     b.add_argument("-o", "--out", default=".ctx-baseline.json")
     b.set_defaults(func=cmd_baseline)
 
-    c = sub.add_parser("check", help="recompter et lister ce qui a disparu")
+    c = sub.add_parser("check", help="recount and list what disappeared")
     c.add_argument("file")
     c.add_argument("baseline")
     c.add_argument("-v", "--verbose", action="store_true")
     c.set_defaults(func=cmd_check)
 
-    l = sub.add_parser("links", help="liens markdown relatifs qui ne resolvent pas")
+    l = sub.add_parser("links", help="relative markdown links that do not resolve")
     l.add_argument("file")
     l.set_defaults(func=cmd_links)
 
