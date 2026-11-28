@@ -150,9 +150,9 @@ Corollary: if a rule is too important to depend on that trigger, it does not mov
 Before trusting the tool on a repository, prove it on its own history:
 
 ```bash
-git show <commit-before>:CLAUDE.md > /tmp/before.md
-python lm-context-diet.py baseline /tmp/before.md -o /tmp/b.json
-python lm-context-diet.py check CLAUDE.md /tmp/b.json
+git show <commit-before>:CLAUDE.md > before.md
+python lm-context-diet.py baseline before.md -o b.json
+python lm-context-diet.py check CLAUDE.md b.json
 ```
 
 If the listed lines look like what was really moved, the tool is calibrated for this repository. Otherwise, adjust the `MARKERS` list.

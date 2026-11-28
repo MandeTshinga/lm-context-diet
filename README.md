@@ -194,6 +194,8 @@ examples/
   CLAUDE.after-broken.md    the same extraction, with one rule accidentally dropped
   docs/                     the README files produced by the extraction
 ARTICLE-fr.md               the long-form French version of this text
+tests/                      unit tests run against the examples (python -m unittest discover tests)
+CONTRIBUTING.md             how to report, discuss and propose changes
 ```
 
 ### Run the demo
@@ -247,6 +249,20 @@ Dans la sortie de `measure`, la dernière colonne (`B/rule`, octets par règle) 
 Pour le skill : copier le dossier `skill/lm-context-diet/` dans `~/.claude/skills/` (tous les projets) ou `.claude/skills/` (un projet), puis demander à Claude Code de « dégraisser mon CLAUDE.md » ou taper `/lm-context-diet`.
 
 La démo des exemples (`examples/`) montre en une commande le contrôle attraper une règle perdue : voir « Run the demo » plus haut.
+
+## Feedback, stars and contributions
+
+- **Found it useful?** A star helps others find it: [★ Star the repository](https://github.com/MandeTshinga/lm-context-diet).
+- **Questions, results, ideas:** start a [discussion](https://github.com/MandeTshinga/lm-context-diet/discussions). Bugs go in an [issue](https://github.com/MandeTshinga/lm-context-diet/issues).
+- **Want to change something?** Read [CONTRIBUTING.md](CONTRIBUTING.md), then open a pull request. The tests run with `python -m unittest discover tests`.
+- **Share it:** the full article is [in English](https://www.langagemachine.be/decryptage/en/silent-loss-trimming-claude-md-without-losing-rules) and [in French](https://www.langagemachine.be/decryptage/perte-silencieuse-degraisser-claude-md-sans-perdre-de-regles).
+
+## Retours, étoiles et contributions
+
+- **Utile ?** Une étoile aide d'autres à le trouver : [★ Mettre une étoile au dépôt](https://github.com/MandeTshinga/lm-context-diet).
+- **Questions, résultats, idées :** ouvrez une [discussion](https://github.com/MandeTshinga/lm-context-diet/discussions). Les bogues vont dans une [issue](https://github.com/MandeTshinga/lm-context-diet/issues).
+- **Une modification ?** Lisez [CONTRIBUTING.md](CONTRIBUTING.md) (en anglais), puis ouvrez une pull request. Les tests se lancent avec `python -m unittest discover tests`.
+- **Partager :** l'article complet est [en français](https://www.langagemachine.be/decryptage/perte-silencieuse-degraisser-claude-md-sans-perdre-de-regles) et [en anglais](https://www.langagemachine.be/decryptage/en/silent-loss-trimming-claude-md-without-losing-rules).
 
 ## License
 
